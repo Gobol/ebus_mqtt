@@ -1,0 +1,75 @@
+{
+    "appliance": "Ariston Genus Evo",
+    "bus": "ebus",
+    "presence_detection": {
+            "valid": false,
+            "request": {
+                "dst": "FE",
+                "pbsb": "07FE"
+            }
+        },
+    "circuits": [
+        {   
+            "name": "boiler", 
+            "messages" : [
+                            {
+                                "comment": "boiler status",
+                                "request_match": {
+                                    "src": "*",
+                                    "dst": "*",
+                                    "pbsb": "2000",
+                                    "data": "^7547"
+                                },
+                                "response_map": [
+                                    {
+                                        "name": "boiler_pressure",
+                                        "offset": 1,
+                                        "data_type": "u8",
+                                        "factor": 0.1,
+                                        "unit": "bar"
+                                    },
+                                    {
+                                        "name": "sensys_04c4",
+                                        "offset": 2,
+                                        "data_type": "u8",
+                                        "factor": 1,
+                                        "unit": ""
+                                    },
+                                    {
+                                        "name": "sensys_46c5",
+                                        "offset": 3,
+                                        "data_type": "u8",
+                                        "factor": 1,
+                                        "unit": ""
+                                    },
+                                    {
+                                        "name": "flame_power",
+                                        "offset": 4,
+                                        "data_type": "u8",
+                                        "factor": 1,
+                                        "unit": ""
+                                    }
+                                ],
+                                "mqtt_publish": [
+                                    {
+                                        "topic": "ebusd/boiler/pressure",
+                                        "data": "boiler_pressure"
+                                    },
+                                    {
+                                        "topic": "ebusd/boiler/sensys_04c4",
+                                        "data": "sensys_04c4"
+                                    },
+                                    {
+                                        "topic": "ebusd/boiler/sensys_46c5",
+                                        "data": "sensys_46c5"
+                                    },
+                                    {
+                                        "topic": "ebusd/boiler/flame_power",
+                                        "data": "flame_power"
+                                    }
+                                ]
+                            }
+            ]
+        }
+    ]
+}
