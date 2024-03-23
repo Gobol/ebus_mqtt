@@ -24,39 +24,39 @@ impl Display for LogLevel {
 }
 
 // logging
-pub fn log(level: LogLevel, message: String) {
+pub fn log<S: Into<String> + std::fmt::Display>(level: LogLevel, message: S) {
     if level as u8 >= LOG_LEVEL as u8 {
         print!("{} {}", level, message);
     }
 }
 
-pub fn logln(level: LogLevel, message: String) {
+pub fn logln<S: Into<String> + std::fmt::Display>(level: LogLevel, message: S) {
     log(level, message);
     println!();
 }
 
-pub fn logD(message: String) {
+pub fn logD<S: Into<String> + std::fmt::Display>(message: S) {
     log(LogLevel::Debug, message);
 }
-pub fn logI(message: String) {
+pub fn logI<S: Into<String> + std::fmt::Display>(message: S) {
     log(LogLevel::Info, message);
 }
-pub fn logW(message: String) {
+pub fn logW<S: Into<String> + std::fmt::Display>(message: S) {
     log(LogLevel::Warning, message);
 }
-pub fn logE(message: String) {
+pub fn logE<S: Into<String> + std::fmt::Display>(message: S) {
     log(LogLevel::Error, message);
 }
 
-pub fn logDln(message: String) {
+pub fn logDln<S: Into<String> + std::fmt::Display>(message: S) {
     logln(LogLevel::Debug, message);
 }   
-pub fn logIln(message: String) {
+pub fn logIln<S: Into<String> + std::fmt::Display>(message: S) {
     logln(LogLevel::Info, message);
 }   
-pub fn logWln(message: String) {
+pub fn logWln<S: Into<String> + std::fmt::Display>(message: S) {
     logln(LogLevel::Warning, message);
 }   
-pub fn logEln(message: String) {
+pub fn logEln<S: Into<String> + std::fmt::Display>(message: S) {
     logln(LogLevel::Error, message);
 }   

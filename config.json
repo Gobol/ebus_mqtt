@@ -1,0 +1,16 @@
+{
+    "ebus": {
+        "host": "192.168.2.45",
+        "port": 9999
+    },
+    "mqtt": {
+        "host": "192.168.2.24",
+        "port": 1883,
+        "topic": "ebusd",
+        "user": "",
+        "pass": ""
+    },
+    "load": [
+        "ariston.json", "", "" 
+    ]    
+}

@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, fmt::{self, Display, Formatter, UpperHex}};
+use std::{collections::VecDeque, fmt::{self, Display, Formatter}};
 
 use crate::log::*;
 

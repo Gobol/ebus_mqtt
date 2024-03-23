@@ -9,12 +9,12 @@ use std::sync::Arc;
 use ebus::parser::{EbusParser, EbusRequest, EbusResponse};
 use log::LogLevel;
 
+use crate::log::*;
 
 mod ebus;
 mod log;
 
 const LOG_LEVEL : LogLevel = LogLevel::Info;
-
 
 
 /*
@@ -63,39 +63,86 @@ impl Mapper {
         }
         // iterate through all defined circuits
         for circuit in self.defs["circuits"].as_array().unwrap() {
-            println!("    Circuit: {}", circuit["name"].as_str().unwrap());
+            // println!("    Circuit: {}", circuit["name"].as_str().unwrap());
 
             // iterate through possible circuit's messages
             for msg in circuit["messages"].as_array().unwrap() {
-                println!("        Message: {}", msg["comment"].as_str().unwrap());
+                // println!("        Message: {}", msg["comment"].as_str().unwrap());
 
                 // check if we've got matching request to message definition
                 if match_field(req.src_hex().as_str(), &msg["request_match"]["src"]) &&
                    match_field(req.dest_hex().as_str(), &msg["request_match"]["dst"]) &&
                    match_field(req.pbsb_hex().as_str(), &msg["request_match"]["pbsb"]) &&
                    match_field(req.data_hex().as_str(), &msg["request_match"]["data"]) {
-                    println!("            Matched request <OK>");
+                    // println!("            Matched request <OK>");
+
+                    // ok, let's initialize json object with parsed response data
+                    let mut result_js = serde_json::Map::new();
 
                     // check if we've got "response_map" defined in msg
-                    if msg["response_map"].is_object() {
+                    let msgo = msg.as_object().unwrap();
+                    let mut field_map: Option<&serde_json::Value> = None;
+                    let mut data: Option<&Vec<u8>> = None;
 
+                    if msgo.contains_key("response_map") {
                         // check if we've received a response
                         if let Some(r) = resp {
-                            // ok, let's initialize json object with parsed response data
-                            let mut js = serde_json::Map::new();
-
-                            // parse response data with response_map field definitions 
-                            for field in msg["response_map"].as_array().unwrap() {
-                                let field_name = field["name"].as_str().unwrap();
-                                let offset = field["offset"].as_u64().unwrap();
-                                let data_type = field["data_type"].as_str().unwrap();
-                                let factor = field["factor"].as_f64().unwrap();
-                                let unit = field["unit"].as_str().unwrap();
-                                println!{"                Field: {} @{:02x} {} {} {}", field_name, offset, data_type, factor, unit};
-                                
+                            data = Some(r.data());
+                            field_map = Some(&msg["response_map"]);
+                        }
+                    }
+                    if msgo.contains_key("request_map") {
+                        data = Some(req.data());
+                        field_map = Some(&msg["request_map"]);
+                    }
+                    // check if we've got data and field_map defined
+                    if (data == None) || (field_map == None) {
+                        continue;
+                    }
+                    // parse data with field definitions 
+                    for field in field_map.unwrap().as_array().unwrap() {
+                        let bytes = data.unwrap();
+                        let field_name = field["field_name"].as_str().unwrap();
+                        let offset = field["field_offset"].as_u64().unwrap();
+                        let data_type = field["data_type"].as_str().unwrap();
+                        let factor = field["factor"].as_f64().unwrap();
+                        let unit = field["unit"].as_str().unwrap();
+                        println!{"                Field: {} @{:02x} t={} f={} [{}]", field_name, offset, data_type, factor, unit};
+                        match data_type {
+                            "u8" => {
+                                let val: u8 = bytes[offset as usize] as u8;
+                                if factor == 1.0 {
+                                    result_js.insert(field_name.to_string(), serde_json::Value::Number(serde_json::Number::from(val)));
+                                } else {
+                                    let value = val as f64 * factor;
+                                    result_js.insert(field_name.to_string(), serde_json::Value::Number(serde_json::Number::from_f64(value).unwrap()));
+                                }
+                            },
+                            "u16le" => {
+                                let val: u16 = (bytes[offset as usize] as u16) | ((bytes[offset as usize + 1] as u16) << 8);
+                                if factor == 1.0 {
+                                    result_js.insert(field_name.to_string(), serde_json::Value::Number(serde_json::Number::from(val)));
+                                } else {
+                                    let value = val as f64 * factor;
+                                    result_js.insert(field_name.to_string(), serde_json::Value::Number(serde_json::Number::from_f64(value).unwrap()));
+                                }
+                            },                  
+                            "u16he" => {
+                                let val: u16 = ((bytes[offset as usize] as u16) << 8) | (bytes[offset as usize + 1] as u16);
+                                if factor == 1.0 {
+                                    result_js.insert(field_name.to_string(), serde_json::Value::Number(serde_json::Number::from(val)));
+                                } else {
+                                    let value = val as f64 * factor;
+                                    result_js.insert(field_name.to_string(), serde_json::Value::Number(serde_json::Number::from_f64(value).unwrap()));
+                                }
+                            },                 
+                            _ => {
+                                println!("                Unsupported data type {}", data_type);
                             }
                         }
                     }
+                    // print result_js
+                    println!("                Result: {}", serde_json::to_string(&serde_json::Value::Object(result_js)).unwrap());
                 }
             }
         }
@@ -103,9 +150,34 @@ impl Mapper {
 }
 
 fn main() {
-    // IP address and port to connect to
-    let ip = "192.168.2.45";
-    let port = 9999;
+    let mut ebus_ip = "";
+    let mut ebus_port = 0;
+    let mut mqtt_ip: &str = "";
+    let mut mqtt_port: i32 = 0; 
+    let mut mqtt_user: &str = "";
+    let mut mqtt_pass: &str = "";
+    let mut mqtt_topic: &str = "";
+
+    // load config.json file 
+    let cfg : serde_json::Value = serde_json::from_reader(File::open("./config.json").expect("Failed to open config.json")).unwrap();
+
+    if cfg.as_object().unwrap().contains_key("ebus") {
+        ebus_ip = cfg["ebus"]["host"].as_str().unwrap();
+        ebus_port = cfg["ebus"]["port"].as_u64().unwrap() as i32;
+    } else {
+        ebus_ip = "192.168.2.45";
+        ebus_port = 9999;
+    }
+
+    if cfg.as_object().unwrap().contains_key("mqtt") {
+        mqtt_ip = cfg["mqtt"]["host"].as_str().unwrap();
+        mqtt_port = cfg["mqtt"]["port"].as_i64().unwrap() as i32;
+        mqtt_user = cfg["mqtt"]["user"].as_str().unwrap();
+        mqtt_pass = cfg["mqtt"]["pass"].as_str().unwrap();
+        mqtt_topic = cfg["mqtt"]["topic"].as_str().unwrap();
+    } else {
+        logI("No MQTT configuration found in config.json");
+    }
 
     let filename = "./ariston.json";
 
@@ -122,7 +194,7 @@ fn main() {
     println!("     Bus: {}", u["bus"].as_str().unwrap());
     
     // Create a TCP stream
-    let mut stream = TcpStream::connect(format!("{}:{}", ip, port)).expect("Failed to connect");
+    let mut stream = TcpStream::connect(format!("{}:{}", ebus_ip, ebus_port)).expect("Failed to connect");
 
     // Create a flag to indicate when to stop receiving data
     let running = Arc::new(AtomicBool::new(true));
